@@ -65,23 +65,21 @@ class Interpreter:
 
         self.error()
 
+    def term(self):
+        token = self.current_token
+        self.eat(INTEGER)
+        return token.value
 
     def expr(self):
         self.current_token = self.get_next_token()
-
-        left = self.current_token
-        self.eat(INTEGER)
-
-        op = self.current_token
-        if op.type == PLUS:
-            self.eat(PLUS)
-        else:
-            self.eat(MINUS)
-
-        right = self.current_token
-        self.eat(INTEGER)
-
-        if op.type == PLUS:
-            return left.value + right.value
-        else:
-            return left.value - right.value
+        result = self.current_token.value
+        self.term()
+        while self.current_token.type != EOF:
+            op = self.current_token
+            if op.type == PLUS:
+                self.eat(PLUS)
+                result += self.term()
+            else:
+                self.eat(MINUS)
+                result -= self.term()
+        return result
