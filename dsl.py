@@ -12,12 +12,12 @@ class Token:
     __repr__ = __str__
 
 
-class Interpreter:
+class Lexer:
     def __init__(self, text):
         self.text = text
         self.pos = 0
-        self.current_token = None
         self.current_char = self.text[self.pos]
+        self.current_token = None
 
     def error(self):
         raise Exception('syntax error.')
@@ -29,22 +29,15 @@ class Interpreter:
         else:
             self.current_char = None
 
-    def eat(self, type):
-        if type == self.current_token.type:
-            self.current_token = self.get_next_token()
-        else:
-            self.error()
-
-    def skip_whitespaces(self):
-        while self.current_char is not None and self.current_char.isspace():
-            self.advance()
-
     def integer(self):
         anchor = self.pos
         while self.current_char is not None and self.current_char.isdigit():
             self.advance()
         return int(self.text[anchor:self.pos])
 
+    def skip_whitespaces(self):
+        while self.current_char is not None and self.current_char.isspace():
+            self.advance()
 
     def get_next_token(self):
         self.skip_whitespaces()
@@ -65,21 +58,31 @@ class Interpreter:
 
         self.error()
 
-    def term(self):
+
+class Interpreter:
+    def __init__(self, lexer):
+        self.lexer = lexer
+        self.current_token = self.lexer.get_next_token()
+
+    def eat(self, type):
+        if type == self.current_token.type:
+            self.current_token = self.lexer.get_next_token()
+        else:
+            self.error()
+
+    def factor(self):
         token = self.current_token
         self.eat(INTEGER)
         return token.value
 
     def expr(self):
-        self.current_token = self.get_next_token()
-        result = self.current_token.value
-        self.term()
+        result = self.factor()
         while self.current_token.type != EOF:
             op = self.current_token
             if op.type == PLUS:
                 self.eat(PLUS)
-                result += self.term()
+                result += self.factor()
             else:
                 self.eat(MINUS)
-                result -= self.term()
+                result -= self.factor()
         return result
