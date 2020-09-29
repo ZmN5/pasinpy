@@ -1,5 +1,5 @@
 
-INTEGER, EOF, PLUS, MINUS = 'INTEGER', 'EOF', 'PLUS', 'MINUS'
+INTEGER, EOF, MUL, DIV = 'INTEGER', 'EOF', 'MUL', 'DIV'
 
 class Token:
     def __init__(self, type, value):
@@ -48,13 +48,13 @@ class Lexer:
         if self.current_char.isdigit():
             return Token(INTEGER, self.integer())
 
-        if self.current_char == '+':
+        if self.current_char == '*':
             self.advance()
-            return Token(PLUS, self.current_char)
+            return Token(MUL, self.current_char)
 
-        if self.current_char == '-':
+        if self.current_char == '/':
             self.advance()
-            return Token(MINUS, self.current_char)
+            return Token(DIV, self.current_char)
 
         self.error()
 
@@ -79,10 +79,10 @@ class Interpreter:
         result = self.factor()
         while self.current_token.type != EOF:
             op = self.current_token
-            if op.type == PLUS:
-                self.eat(PLUS)
-                result += self.factor()
+            if op.type == MUL:
+                self.eat(MUL)
+                result *= self.factor()
             else:
-                self.eat(MINUS)
-                result -= self.factor()
+                self.eat(DIV)
+                result //= self.factor()
         return result
