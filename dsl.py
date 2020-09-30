@@ -15,7 +15,6 @@ class Token:
 
     __repr__ = __str__
 
-
 class Lexer:
     def __init__(self, text):
         self.text = text
@@ -54,35 +53,62 @@ class Lexer:
 
         if self.current_char == '*':
             self.advance()
-            return Token(MUL, self.current_char)
+            return Token(MUL, '*')
 
         if self.current_char == '/':
             self.advance()
-            return Token(DIV, self.current_char)
+            return Token(DIV, '/')
 
         if self.current_char == '+':
             self.advance()
-            return Token(PLUS, self.current_char)
+            return Token(PLUS, '+')
 
         if self.current_char == '-':
             self.advance()
-            return Token(MINUS, self.current_char)
+            return Token(MINUS, '-')
 
         if self.current_char == '(':
             self.advance()
-            return Token(LPAREN, self.current_char)
+            return Token(LPAREN, '(')
 
         if self.current_char == ')':
             self.advance()
-            return Token(RPAREN, self.current_char)
+            return Token(RPAREN, ')')
 
         self.error()
 
 
-class Interpreter:
+class AST:
+    pass
+
+
+class BinOp(AST):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.token = op
+        self.op = op
+        self.right = right
+
+
+class UnaryOp(AST):
+    def __init__(self, op, expr):
+        self.token = self.op = op
+        self.expr = expr
+
+
+class Num(AST):
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
+
+
+class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
         self.current_token = self.lexer.get_next_token()
+
+    def error(self):
+        raise Exception('parse error.')
 
     def eat(self, token_type):
         if token_type == self.current_token.type:
@@ -90,37 +116,92 @@ class Interpreter:
         else:
             self.error()
 
-    def factor(self):
-        token = self.current_token
-        if token.type == INTEGER:
-            self.eat(INTEGER)
-            return token.value
-        elif token.type == LPAREN:
-            self.eat(LPAREN)
-            result = self.expr()
-            self.eat(RPAREN)
-            return result
+    def expr(self):
+        node = self.term()
+        while self.current_token.type in (PLUS, MINUS):
+            token = self.current_token
+            if token.type == PLUS:
+                self.eat(PLUS)
+            elif token.type == MINUS:
+                self.eat(MINUS)
+            node = BinOp(node, token, self.term())
+        return node
 
     def term(self):
-        result = self.factor()
+        node = self.factor()
         while self.current_token.type in (MUL, DIV):
-            op = self.current_token
-            if op.type == MUL:
+            token = self.current_token
+            if token.type == MUL:
                 self.eat(MUL)
-                result *= self.factor()
-            else:
+            elif token.type == DIV:
                 self.eat(DIV)
-                result //= self.factor()
-        return result
+            node = BinOp(node, token, self.factor())
+        return node
 
-    def expr(self):
-        result = self.term()
-        while self.current_token.type in (PLUS, MINUS):
-            op = self.current_token
-            if op.type == PLUS:
-                self.eat(PLUS)
-                result += self.term()
-            else:
-                self.eat(MINUS)
-                result -= self.term()
-        return result
+    def factor(self):
+        token = self.current_token
+        if token.type == PLUS:
+            self.eat(PLUS)
+            return UnaryOp(token, self.factor())
+        elif token.type == MINUS:
+            self.eat(MINUS)
+            return UnaryOp(token, self.factor())
+        elif token.type == INTEGER:
+            self.eat(INTEGER)
+            return Num(token)
+        elif token.type == LPAREN:
+            self.eat(LPAREN)
+            node = self.expr()
+            self.eat(RPAREN)
+            return node
+
+    def parse(self):
+        return self.expr()
+
+
+class NodeVisitor:
+    def __init__(self, parser):
+        self.parser = parser
+
+    def visit(self, node):
+        method_name = f'visit{type(node).__name__}'
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node)
+
+    def generic_visit(self, node):
+        raise Exception(f'no visitor for this node: {node}.')
+
+
+class Interpreter(NodeVisitor):
+    def __init__(self, parser):
+        self.parser = parser
+
+    def visitNum(self, node):
+        return node.value
+
+    def visitBinOp(self, node):
+        if node.op.type == PLUS:
+            return self.visit(node.left) + self.visit(node.right)
+        if node.op.type == MUL:
+            return self.visit(node.left) * self.visit(node.right)
+        if node.op.type == DIV:
+            return self.visit(node.left) / self.visit(node.right)
+        if node.op.type == MINUS:
+            return self.visit(node.left) - self.visit(node.right)
+
+    def visitUnaryOp(self, node):
+        if node.op.type == PLUS:
+            return +self.visit(node.expr)
+        elif node.op.type == MINUS:
+            return -self.visit(node.expr)
+
+    def interpret(self):
+        ast = self.parser.parse()
+        return self.visit(ast)
+
+
+def test(text):
+    lexer = Lexer(text)
+    parser = Parser(lexer)
+    interpreter = Interpreter(parser)
+    return interpreter.interpret()
