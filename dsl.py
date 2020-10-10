@@ -13,6 +13,7 @@ ASSIGN, ID = 'ASSIGN', 'ID'
 COMMA, COLON, SEMI, DOT = 'COMMA', 'COLON', 'SEMI', 'DOT'
 REAL_CONST, INTEGER_CONST = 'REAL_CONST', 'INTEGER_CONST'
 VAR, REAL = 'VAR', 'REAL'
+PROCEDURE = 'PROCEDURE'
 
 class Token:
     def __init__(self, type, value):
@@ -33,6 +34,7 @@ RESERVED_KEYWORDS = dict(
     DIV=Token(INTEGER_DIV, DIV),
     INTEGER=Token(INTEGER, INTEGER),
     REAL=Token(REAL, REAL),
+    PROCEDURE=Token(PROCEDURE, PROCEDURE),
 )
 
 
@@ -238,6 +240,12 @@ class Type(AST):
         self.value = token.value
 
 
+class ProcedureDecl(AST):
+    def __init__(self, proc_name, block_node):
+        self.proc_name = proc_name
+        self.block_node = block_node
+
+
 class Parser:
     def __init__(self, lexer):
         self.lexer = lexer
@@ -255,10 +263,10 @@ class Parser:
     def program(self):
         self.eat(PROGRAM)
         var_node = self.variable()
-        prog_name = var_node.value
+        proc_name = var_node.value
         self.eat(SEMI)
         block_node = self.block()
-        program_node = Program(prog_name, block_node)
+        program_node = Program(proc_name, block_node)
         self.eat(DOT)
         return program_node
 
@@ -275,6 +283,15 @@ class Parser:
                 var_decl = self.variable_declaration()
                 result.extend(var_decl)
                 self.eat(SEMI)
+        while self.current_token.type == PROCEDURE:
+            self.eat(PROCEDURE)
+            proc_name = self.current_token.value
+            self.eat(ID)
+            self.eat(SEMI)
+            block_node = self.block()
+            proc_decl = ProcedureDecl(proc_name, block_node)
+            result.append(proc_decl)
+            self.eat(SEMI)
         return result
 
     def variable_declaration(self):
@@ -418,6 +435,9 @@ class Interpreter(NodeVisitor):
     def visitProgram(self, node):
         self.visit(node.block)
 
+    def visitProcedureDecl(self, node):
+        pass
+
     def visitBlock(self, node):
         for decl in node.declarations:
             self.visit(decl)
@@ -523,6 +543,9 @@ class SymbolTable:
 class SymbolTableBuilder(NodeVisitor):
     def __init__(self):
         self._symtab = SymbolTable()
+
+    def visitProcedureDecl(self, node):
+        pass
 
     def visitNum(self, node):
         pass
