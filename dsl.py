@@ -1,6 +1,7 @@
 ##############################################################
 #                      Lexer
 ##############################################################
+from collections import OrderedDict
 
 INTEGER, EOF, MUL, DIV = 'INTEGER', 'EOF', 'MUL', 'DIV'
 
@@ -400,9 +401,6 @@ class Parser:
 
 
 class NodeVisitor:
-    def __init__(self, parser):
-        self.parser = parser
-
     def visit(self, node):
         method_name = f'visit{type(node).__name__}'
         visitor = getattr(self, method_name, self.generic_visit)
@@ -413,8 +411,8 @@ class NodeVisitor:
 
 
 class Interpreter(NodeVisitor):
-    def __init__(self, parser):
-        self.parser = parser
+    def __init__(self, tree):
+        self.tree = tree
         self.GLOBAL_SCOPE = {}
 
     def visitProgram(self, node):
@@ -471,14 +469,119 @@ class Interpreter(NodeVisitor):
         self.GLOBAL_SCOPE[var_name] = self.visit(node.right)
 
     def interpret(self):
-        ast = self.parser.parse()
-        return self.visit(ast)
+        return self.visit(self.tree)
+
+
+##############################################################
+#                  Symbols and Symbol Table
+##############################################################
+
+
+class Symbol:
+    def __init__(self, name, type=None):
+        self.name = name
+        self.type = type
+
+class BuiltinTypeSymbol(Symbol):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def __str__(self):
+        return self.name
+
+    __repr__ = __str__
+
+
+class VarSysmbol(Symbol):
+    def __init__(self, name, type):
+        super().__init__(name, type)
+
+    def __str__(self):
+        return f'<{self.name}:{self.type}>'
+
+    __repr__ = __str__
+
+
+class SymbolTable:
+    def __init__(self):
+        self._symbols = OrderedDict()
+        self._init_builtin_types()
+
+    def define(self, symbol):
+        print(f'define symbol {symbol}')
+        self._symbols[symbol.name] = symbol
+
+    def lookup(self, name):
+        print(f'lookup {name}')
+        return self._symbols.get(name)
+
+    def _init_builtin_types(self):
+        self.define(BuiltinTypeSymbol('INTEGER'))
+        self.define(BuiltinTypeSymbol('REAL'))
+
+
+class SymbolTableBuilder(NodeVisitor):
+    def __init__(self):
+        self._symtab = SymbolTable()
+
+    def visitNum(self, node):
+        pass
+
+    def visitBinOp(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
+
+    def visitUnaryOp(self, node):
+        self.visit(self.expr)
+
+    def visitCompound(self, node):
+        for child in node.children:
+            self.visit(child)
+
+    def visitAssign(self, node):
+        var_name = node.left.value
+        var_sym = self._symtab.lookup(var_name)
+        if not var_sym:
+            raise NameError(repr(var_name))
+        self.visit(node.right)
+
+    def visitVar(self, node):
+        var_name = node.value
+        var_sym = self._symtab.lookup(var_name)
+        if not var_sym:
+            raise NameError(repr(var_name))
+
+    def visitNoOp(self, node):
+        pass
+
+    def visitProgram(self, node):
+        self.visit(node.block)
+
+    def visitBlock(self, node):
+        for decl in node.declarations:
+            self.visit(decl)
+        self.visit(node.compound_statement)
+
+    def visitVarDecl(self, node):
+        type_node = node.type_node
+        type_sym = self._symtab.lookup(type_node.value)
+        var_name = node.var_node.value
+        var_sym = VarSysmbol(var_name, type_sym)
+        self._symtab.define(var_sym)
+
+    def visitType(self):
+        pass
 
 
 def test(text):
     lexer = Lexer(text)
     parser = Parser(lexer)
-    interpreter = Interpreter(parser)
+    tree = parser.parse()
+
+    symtab_builder = SymbolTableBuilder()
+    symtab_builder.visit(tree)
+
+    interpreter = Interpreter(tree)
     interpreter.interpret()
     print(interpreter.GLOBAL_SCOPE)
 
